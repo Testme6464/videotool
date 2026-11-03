@@ -1,0 +1,83 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download RNNoise model
+        run: |
+          curl -sL -o assets/models/cb.rnnn https://raw.githubusercontent.com/GregorR/rnnoise-models/master/conjoined-burgers-2018-08-28/cb.rnnn
+          test $(stat -c%s assets/models/cb.rnnn) -eq 299741
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+          channel: stable
+          cache: true
+
+      - name: Restore binary assets (gradle wrapper jar + launcher icons)
+        run: |
+          flutter create --org com.tryo --project-name videotool --platforms=android /tmp/scratch >/dev/null 2>&1 || true
+          cp /tmp/scratch/android/gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/gradle-wrapper.jar
+          cp /tmp/scratch/android/gradlew android/gradlew
+          cp /tmp/scratch/android/gradlew.bat android/gradlew.bat
+          chmod +x android/gradlew
+          for d in hdpi mdpi xhdpi xxhdpi xxxhdpi; do
+            cp /tmp/scratch/android/app/src/main/res/mipmap-$d/ic_launcher.png android/app/src/main/res/mipmap-$d/ic_launcher.png
+          done
+          ls android/gradle/wrapper/gradle-wrapper.jar android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: |
+          set +e
+          flutter analyze --no-pub > analyze.log 2>&1
+          code=$?
+          set -e
+          if [ $code -ne 0 ]; then
+            { echo '## flutter analyze failed'; echo '```'; tail -c 15000 analyze.log; echo '```'; } > analyze-tail.md
+            gh issue create --title "Analyze failed (run $GITHUB_RUN_NUMBER)" --body-file analyze-tail.md || true
+            exit 1
+          fi
+
+      - name: Build debug APK
+        run: |
+          set +e
+          flutter build apk --debug > build.log 2>&1
+          code=$?
+          set -e
+          if [ $code -ne 0 ]; then
+            { echo '## flutter build apk failed'; echo '```'; tail -c 30000 build.log; echo '```'; } > build-tail.md
+            gh issue create --title "APK build failed (run $GITHUB_RUN_NUMBER)" --body-file build-tail.md || true
+            exit 1
+          fi
+          ls -la build/app/outputs/flutter-apk/
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v0.1.0
+          name: VideoTool v0.1.0 (debug)
+          body: "Debug APK built automatically from the main branch."
+          files: build/app/outputs/flutter-apk/app-debug.apk
