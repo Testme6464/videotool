@@ -40,6 +40,9 @@ class GeminiService {
       } on _QuotaHit catch (e) {
         await keys.reportFailure(k.id, e.message, isQuota: true);
         continue; // try next key
+      } on _LocationBlocked {
+        // Geo-block affects every key — stop immediately, don't rotate.
+        rethrow;
       } on _BadKey catch (e) {
         await keys.reportFailure(k.id, e.message, isQuota: false);
         continue;
@@ -122,6 +125,14 @@ class GeminiService {
     }
 
     final msg = _errorMessage(res);
+    final lower = msg.toLowerCase();
+    // Geo-blocked (e.g. Myanmar): no key will work — tell user to use VPN
+    // instead of burning through every key.
+    if (lower.contains('user location is not supported') ||
+        lower.contains('location is not supported')) {
+      throw _LocationBlocked(
+          'Gemini API က ဒီနိုင်ငံမှာ မဖွင့်သေးပါ (User location is not supported)။ VPN ဖွင့်ပြီး ပြန်လုပ်ပါ။');
+    }
     if (res.statusCode == 429) throw _QuotaHit('Rate limit (429): $msg');
     if (res.statusCode == 403 || res.statusCode == 400) {
       final lower = msg.toLowerCase();
@@ -167,4 +178,9 @@ class _QuotaHit extends GeminiException {
 
 class _BadKey extends GeminiException {
   _BadKey(super.message);
+}
+
+/// Geo-blocked region — VPN needed. Not a key problem, so no rotation.
+class _LocationBlocked extends GeminiException {
+  _LocationBlocked(super.message);
 }

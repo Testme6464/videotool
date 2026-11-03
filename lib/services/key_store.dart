@@ -1,12 +1,19 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/api_key.dart';
 
-/// Stores many free API keys and auto-rotates to the next usable one
-/// when a key hits its limit (429 / quota / 403).
+/// Stores many free API keys in ENCRYPTED secure storage and auto-rotates
+/// to the next usable one when a key hits its limit (429 / quota / 403).
+/// Keys never leave the phone — requests go directly to Google over HTTPS.
 class KeyStore {
-  static const _prefsKey = 'videotool_api_keys_v1';
-  static const _indexKey = 'videotool_api_key_index_v1';
+  static const _secureKey = 'videotool_api_keys_v1';
+  static const _secureIndex = 'videotool_api_key_index_v1';
+  // Legacy (unencrypted) location — migrated once, then cleared.
+  static const _legacyPrefsKey = 'videotool_api_keys_v1';
+  static const _legacyIndexKey = 'videotool_api_key_index_v1';
+
+  static const _storage = FlutterSecureStorage();
 
   List<ApiKey> _keys = [];
   int _cursor = 0;
@@ -19,16 +26,33 @@ class KeyStore {
 
   Future<void> load() async {
     if (_loaded) return;
-    final prefs = await SharedPreferences.getInstance();
-    _keys = ApiKey.decodeList(prefs.getString(_prefsKey) ?? '[]');
-    _cursor = prefs.getInt(_indexKey) ?? 0;
+    var raw = await _storage.read(key: _secureKey);
+    if (raw == null) {
+      // One-time migration from legacy SharedPreferences.
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final legacy = prefs.getString(_legacyPrefsKey);
+        if (legacy != null && legacy.isNotEmpty) {
+          raw = legacy;
+          await _storage.write(key: _secureKey, value: legacy);
+          final idx = prefs.getInt(_legacyIndexKey) ?? 0;
+          await _storage.write(
+              key: _secureIndex, value: idx.toString());
+          await prefs.remove(_legacyPrefsKey);
+          await prefs.remove(_legacyIndexKey);
+        }
+      } catch (_) {}
+    }
+    _keys = ApiKey.decodeList(raw ?? '[]');
+    _cursor =
+        int.tryParse(await _storage.read(key: _secureIndex) ?? '0') ?? 0;
     _loaded = true;
   }
 
   Future<void> _save() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_prefsKey, ApiKey.encodeList(_keys));
-    await prefs.setInt(_indexKey, _cursor);
+    await _storage.write(
+        key: _secureKey, value: ApiKey.encodeList(_keys));
+    await _storage.write(key: _secureIndex, value: _cursor.toString());
   }
 
   Future<ApiKey> addKey(String key, {String? label}) async {
@@ -71,7 +95,9 @@ class KeyStore {
     }
   }
 
-  /// Round-robin pick of the next usable key.
+  /// Round-robin pick of the next usable key — requests rotate key by key,
+  /// skipping quota-hit / invalid keys (they sit in cooldown).
+  /// Tip: keys from DIFFERENT Google projects get separate quotas.
   ApiKey? pickKey() {
     if (_keys.isEmpty) return null;
     for (var n = 0; n < _keys.length; n++) {
