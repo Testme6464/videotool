@@ -42,6 +42,7 @@ jobs:
           cp /tmp/scratch/android/gradlew.bat android/gradlew.bat
           chmod +x android/gradlew
           for d in hdpi mdpi xhdpi xxhdpi xxxhdpi; do
+            mkdir -p android/app/src/main/res/mipmap-$d
             cp /tmp/scratch/android/app/src/main/res/mipmap-$d/ic_launcher.png android/app/src/main/res/mipmap-$d/ic_launcher.png
           done
           ls android/gradle/wrapper/gradle-wrapper.jar android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
