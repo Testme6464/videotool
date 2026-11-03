@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'dhamma_screen.dart';
-import 'dubbing_screen.dart';
 import 'fruit_story_screen.dart';
 import 'long_to_short_screen.dart';
 import 'recap_screen.dart';
@@ -22,16 +21,18 @@ class ToolsScreen extends StatelessWidget {
 
   static final _tools = <_Tool>[
     _Tool('🎬', 'Recap Translate',
-        'နိုင်ငံခြား video → မြန်မာစာတန်း + dubbing (Gemini)', () => const RecapScreen()),
+        'နိုင်ငံခြား video → မြန်မာစာတန်း + dubbing (Gemini)',
+        () => const RecapScreen(initialTab: 0)),
     _Tool('🎙️', 'Dubbing Studio',
-        'အသံသွင်း → video နဲ့ ရော/အစားထိုး', () => const DubbingScreen()),
+        'Edge TTS မြန်မာအသံ + Smart Sync + render',
+        () => const RecapScreen(initialTab: 0)),
     _Tool('💬', 'Myanmar Subtitle',
         'SRT စာတန်း မြန်မာဖောင့်နဲ့ burn', () => const SubtitleScreen()),
     _Tool('🙏', 'Dhamma Studio',
         'တရားအသံ + ပုံ + ခေါင်းစဉ် → video', () => const DhammaScreen()),
     _Tool('📝', 'Original Recap',
         'ကိုယ့် video → မြန်မာ storytelling script (Gemini)',
-        () => const RecapScreen()),
+        () => const RecapScreen(initialTab: 1)),
     _Tool('✂️', 'Video Splitter',
         'မိနစ်အလိုက် အပိုင်းတွေ ဖြတ်', () => const SplitterScreen()),
     _Tool('📱', 'Long to Short',

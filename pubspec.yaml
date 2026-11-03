@@ -1,7 +1,7 @@
 name: videotool
 description: "Flutter + FFmpegKit video tool starter with Burmese UI."
 publish_to: "none"
-version: 0.2.0+2
+version: 0.3.0+3
 
 environment:
   sdk: ^3.9.0
@@ -17,6 +17,8 @@ dependencies:
   shared_preferences: ^2.5.6
   flutter_secure_storage: ^11.2.0
   url_launcher: ^6.3.3
+  edge_tts: ^0.1.5
+  video_player: ^2.14.1
   ffmpeg_kit_flutter_new: ^4.6.8
   image_picker: ^1.2.4
   path_provider: ^2.1.6
