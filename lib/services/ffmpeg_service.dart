@@ -120,6 +120,38 @@ class FfmpegService {
     return done.future;
   }
 
+  /// Copies the bundled Myanmar font into app storage for the
+  /// subtitles/drawtext filters. Returns its absolute path.
+  static String? _fontPath;
+
+  static Future<String> fontPath() async {
+    if (_fontPath != null) return _fontPath!;
+    final dir = await getApplicationDocumentsDirectory();
+    final file = File('${dir.path}/NotoSansMyanmar-Regular.ttf');
+    if (!await file.exists()) {
+      final data =
+          await rootBundle.load('assets/fonts/NotoSansMyanmar-Regular.ttf');
+      await file.writeAsBytes(
+        data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+        flush: true,
+      );
+    }
+    _fontPath = file.path;
+    return file.path;
+  }
+
+  /// Copies an SRT file's content to a temp .srt path FFmpeg can read.
+  static Future<String> writeSrt(String content) async {
+    final dir = await outDir();
+    final f = File(
+        '${dir.path}/sub_${DateTime.now().millisecondsSinceEpoch}.srt');
+    await f.writeAsString(content, flush: true);
+    return f.path;
+  }
+
+  /// Shell-quotes a path for FFmpeg filter args (single-quote escaping).
+  static String q(String p) => "'${p.replaceAll("'", r"'\''")}'";
+
   /// Cancels all running FFmpeg sessions.
   static Future<void> cancel() => FFmpegKit.cancel();
 }
