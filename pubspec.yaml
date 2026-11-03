@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^2.0.0
-  ffmpeg_kit_flutter_full: 6.0.3
+  ffmpeg_kit_flutter_new: ^4.6.8
   image_picker: ^1.2.4
   path_provider: ^2.1.6
   permission_handler: ^13.0.0

@@ -40,7 +40,7 @@ flutter build apk --debug
 
 ## မှတ်စုများ
 
-- `ffmpeg_kit_flutter_full` (FFmpeg 6.0, x264/x265 အပါ) သုံးထားလို့ **GPL v3** သက်ရောက်တယ် —
+- `ffmpeg_kit_flutter_new` (FFmpegKit fork, full-gpl အပါ) သုံးထားလို့ **GPL v3** သက်ရောက်တယ် —
   ကိုယ်တိုင်သုံးတာ/စမ်းတာက ပြဿနာမရှိ၊ Play Store တင်မယ်ဆို လိုင်စင်အကြောင်းလေ့လာပါ။
 - RNNoise မော်ဒယ် (`cb.rnnn`) က copyright မသက်ရောက်တဲ့ open model —
   အသေးစိတ် `assets/models/NOTICE.txt` မှာ။
