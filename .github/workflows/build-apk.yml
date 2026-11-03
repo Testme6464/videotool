@@ -51,6 +51,8 @@ jobs:
         run: flutter pub get
 
       - name: Analyze
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set +e
           flutter analyze --no-pub > analyze.log 2>&1
@@ -63,6 +65,8 @@ jobs:
           fi
 
       - name: Build debug APK
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set +e
           flutter build apk --debug > build.log 2>&1
@@ -74,6 +78,13 @@ jobs:
             exit 1
           fi
           ls -la build/app/outputs/flutter-apk/
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
