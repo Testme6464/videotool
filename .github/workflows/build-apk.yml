@@ -90,6 +90,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v0.5.4
-                    name: VideoTool v0.5.4 (debug)
+        name: VideoTool v0.5.4 (debug)
           body: "Debug APK built automatically from the main branch."
           files: build/app/outputs/flutter-apk/app-debug.apk
