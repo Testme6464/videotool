@@ -152,6 +152,9 @@ class _RecapScreenState extends State<RecapScreen>
   Future<void> _genScript() async {
     final isTranslate = _tab.index == 0;
     if (_videoPath == null) return;
+    // Refresh: key may have been added in the Keys tab after this
+    // screen was created (shared singleton, but storage is the truth).
+    await _keys.refresh();
     if (!_keys.hasUsableKey) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Keys tab မှာ Gemini key အရင်ထည့်ပါ')));

@@ -6,7 +6,14 @@ import '../models/api_key.dart';
 /// Stores many free API keys in ENCRYPTED secure storage and auto-rotates
 /// to the next usable one when a key hits its limit (429 / quota / 403).
 /// Keys never leave the phone — requests go directly to Google over HTTPS.
+///
+/// SINGLETON: all screens share one instance, so a key added in the Keys
+/// tab is immediately visible to Dubbing/Recap/etc.
 class KeyStore {
+  KeyStore._();
+  static final KeyStore _instance = KeyStore._();
+  factory KeyStore() => _instance;
+
   static const _secureKey = 'videotool_api_keys_v1';
   static const _secureIndex = 'videotool_api_key_index_v1';
   // Legacy (unencrypted) location — migrated once, then cleared.
@@ -26,6 +33,16 @@ class KeyStore {
 
   Future<void> load() async {
     if (_loaded) return;
+    await _readFromStorage();
+  }
+
+  /// Force re-read from storage (picks up keys added elsewhere).
+  Future<void> refresh() async {
+    _loaded = false;
+    await _readFromStorage();
+  }
+
+  Future<void> _readFromStorage() async {
     var raw = await _storage.read(key: _secureKey);
     if (raw == null) {
       // One-time migration from legacy SharedPreferences.
