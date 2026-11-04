@@ -63,7 +63,8 @@ class _RecapScreenState extends State<RecapScreen>
 
   // ratio & bg
   String _ratio = '9:16';
-  String _bgMode = 'blur'; // blur, pad
+  String _bgMode = 'blur'; // blur, pad, crop
+  bool _blackBars = false;
   final _masks = [BlurMask(), BlurMask()];
 
   // sync & fx
@@ -270,7 +271,7 @@ class _RecapScreenState extends State<RecapScreen>
     )
       ..mirror = _mirror
       ..ratio = _ratio
-      ..bgMode = _bgMode
+      ..bgMode = _blackBars ? 'pad' : _bgMode
       ..smartSync = _smartSync
       ..origVolume = _replaceAudio ? -1 : _origVol
       ..resolution = _resolution
@@ -630,11 +631,26 @@ class _RecapScreenState extends State<RecapScreen>
                       onSelected: (_) =>
                           setState(() => _bgMode = 'blur')),
                   ChoiceChip(
-                      label: const Text('အနက်နောက်ခံ'),
+                      label: const Text('ပုံနောက်ခံ'),
                       selected: _bgMode == 'pad',
                       onSelected: (_) =>
                           setState(() => _bgMode = 'pad')),
+                  ChoiceChip(
+                      label: const Text('Crop'),
+                      selected: _bgMode == 'crop',
+                      onSelected: (_) =>
+                          setState(() => _bgMode = 'crop')),
                 ],
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('အမည်းဘောင်'),
+                subtitle: const Text(
+                    'Preview မှာ "ဗီဒီယို အရွယ်/နေရာ ချိန်မယ်" နှိပ်ပြီး လက်နဲ့ ဆွဲ/ချဲ့ နိုင်ပါတယ်'),
+                value: _blackBars,
+                onChanged: (v) =>
+                    setState(() => _blackBars = v),
               ),
             ],
             const SizedBox(height: 12),

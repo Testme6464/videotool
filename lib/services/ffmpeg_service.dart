@@ -152,6 +152,12 @@ class FfmpegService {
   /// Shell-quotes a path for FFmpeg filter args (single-quote escaping).
   static String q(String p) => "'${p.replaceAll("'", r"'\''")}'";
 
+  /// Escape for FFmpeg filter arguments (drawtext text, etc).
+  static String esc(String s) => s
+      .replaceAll('\\', '\\\\')
+      .replaceAll(':', '\\:')
+      .replaceAll("'", "\\'");
+
   /// Cancels all running FFmpeg sessions.
   static Future<void> cancel() => FFmpegKit.cancel();
 }

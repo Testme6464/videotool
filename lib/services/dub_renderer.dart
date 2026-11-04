@@ -152,8 +152,11 @@ class DubRenderer {
       if (c.bgMode == 'blur') {
         filters.add(
             '[$label]split[a][b];[a]scale=$cw:$ch:force_original_aspect_ratio=increase,crop=$cw:$ch,boxblur=22[bg];[b][bg]overlay=(W-w)/2:(H-h)/2,format=yuv420p[$v2]');
+      } else if (c.bgMode == 'crop') {
+        filters.add(
+            '[$label]scale=$cw:$ch:force_original_aspect_ratio=increase,crop=$cw:$ch,format=yuv420p[$v2]');
       } else {
-        // pad (image bg would need extra input; pad is the safe default)
+        // pad (black bars)
         filters.add(
             '[$label]pad=$cw:$ch:(ow-iw)/2:(oh-ih)/2:color=black,format=yuv420p[$v2]');
       }
