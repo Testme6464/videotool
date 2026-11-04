@@ -155,8 +155,12 @@ class DubRenderer {
       label = v;
       final v2 = next();
       if (c.bgMode == 'blur') {
+        // Memory-safe blur: blur at HALF resolution with gblur (much
+        // cheaper than boxblur=22 at full res — boxblur OOM-kills phones
+        // with 4GB RAM), then upscale. Visually equivalent.
+        final hw = cw ~/ 2, hh = ch ~/ 2;
         filters.add(
-            '[$label]split[a][b];[a]scale=$cw:$ch:force_original_aspect_ratio=increase,crop=$cw:$ch,boxblur=22[bg];[b][bg]overlay=(W-w)/2:(H-h)/2,format=yuv420p[$v2]');
+            '[$label]split[a][b];[a]scale=$hw:$hh:force_original_aspect_ratio=increase,crop=$hw:$hh,gblur=sigma=18,scale=$cw:$ch[bg];[b][bg]overlay=(W-w)/2:(H-h)/2,format=yuv420p[$v2]');
       } else if (c.bgMode == 'crop') {
         filters.add(
             '[$label]scale=$cw:$ch:force_original_aspect_ratio=increase,crop=$cw:$ch,format=yuv420p[$v2]');
@@ -237,7 +241,7 @@ class DubRenderer {
     final cmd = '-y -i ${FfmpegService.q(c.videoPath)} '
         '-i ${FfmpegService.q(c.ttsPath)} '
         '-filter_complex "$vf;$af" $maps '
-        '-c:v libx264 -crf 23 -preset veryfast -c:a aac -b:a 128k '
+        '-c:v libx264 -crf 23 -preset veryfast -threads 4 -c:a aac -b:a 128k '
         '-movflags +faststart ${FfmpegService.q(out)}';
 
     onLog('Render start…');
@@ -257,7 +261,7 @@ class DubRenderer {
       final safeCmd = '-y -i ${FfmpegService.q(c.videoPath)} '
           '-i ${FfmpegService.q(c.ttsPath)} '
           '-filter_complex "$safeVf;$af" -map "[v]" -map "[aout]" '
-          '-c:v libx264 -crf 23 -preset veryfast -c:a aac -b:a 128k '
+          '-c:v libx264 -crf 23 -preset veryfast -threads 4 -c:a aac -b:a 128k '
           '-movflags +faststart ${FfmpegService.q(out)}';
       rc = await FfmpegService.runJob(
         command: safeCmd,
