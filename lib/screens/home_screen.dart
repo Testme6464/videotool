@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../services/ffmpeg_service.dart';
+import '../services/update_service.dart';
 
 enum JobKind { denoise, compress, extractAudio }
 
@@ -52,12 +54,123 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _picker = ImagePicker();
+  final _updater = UpdateService();
 
   String? _videoPath;
   MediaInfo? _info;
   bool _busy = false;
   bool _running = false;
   double _progress = 0;
+
+  // Update checker state.
+  String _appVersion = '';
+  bool _checkingUpdate = false;
+  String? _updateMsg;
+  double _dlProgress = -1; // -1 = not downloading
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+    // Auto-check once on startup (silent unless update found).
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) _checkUpdate(silent: true);
+    });
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted) setState(() => _appVersion = info.version);
+    } catch (_) {}
+  }
+
+  Future<void> _checkUpdate({bool silent = false}) async {
+    if (_checkingUpdate) return;
+    setState(() {
+      _checkingUpdate = true;
+      if (!silent) _updateMsg = 'စစ်နေတယ်…';
+    });
+    final rel = await _updater.checkLatest();
+    if (!mounted) return;
+    setState(() {
+      _checkingUpdate = false;
+      if (rel == null) {
+        _updateMsg = silent
+            ? null
+            : 'စစ်လို့မရပါ — internet စစ်ပါ';
+      } else if (rel.hasUpdate) {
+        _updateMsg = null; // dialog handles it
+        _showUpdateDialog(rel);
+      } else {
+        _updateMsg = silent
+            ? null
+            : 'နောက်ဆုံးဗားရှင်း သုံးနေပါတယ် ✅ (v${rel.current})';
+      }
+    });
+  }
+
+  void _showUpdateDialog(dynamic rel) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('🆕 Update ရပြီ!'),
+        content: Text(
+            'v${rel.current} → v${rel.latest}${rel.sizeText}\n\n'
+            'ဒေါင်းပြီး တိုက်ရိုက် install လုပ်မလား?\n'
+            '(Install unknown apps ကို တစ်ခါခွင့်ပြုရမယ်)'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('နောက်မှ'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _downloadUpdate(rel);
+            },
+            child: const Text('ဒေါင်းမယ်'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _downloadUpdate(dynamic rel) async {
+    if (rel.apkUrl == null) {
+      setState(
+          () => _updateMsg = 'APK link မတွေ့ပါ');
+      return;
+    }
+    setState(() {
+      _dlProgress = 0;
+      _updateMsg = 'ဒေါင်းနေတယ်…';
+    });
+    try {
+      final path = await _updater.download(
+        rel.apkUrl as String,
+        (p) => mounted
+            ? setState(() => _dlProgress = p)
+            : null,
+      );
+      if (!mounted) return;
+      setState(() {
+        _dlProgress = -1;
+        _updateMsg = 'ဒေါင်းပြီးပြီ — install လုပ်နေတယ်…';
+      });
+      await _updater.installApk(path);
+      if (mounted) {
+        setState(() => _updateMsg =
+            'Install screen ပွင့်ရင် Install နှိပ်ပါ 📲');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _dlProgress = -1;
+        _updateMsg = 'ဒေါင်းတာ မအောင်မြင်ပါ: $e';
+      });
+    }
+  }
   String _status = 'ဗီဒီယိုရွေးပါ';
   String? _outputPath;
   final List<String> _logs = [];
@@ -215,6 +328,63 @@ class _HomeScreenState extends State<HomeScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // In-app updater.
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.system_update,
+                          color: Colors.teal),
+                      const SizedBox(width: 8),
+                      Text(
+                        'VideoTool v$_appVersion',
+                        style: const TextStyle(
+                            fontWeight:
+                                FontWeight.bold),
+                      ),
+                      const Spacer(),
+                      TextButton.icon(
+                        onPressed: _checkingUpdate
+                            ? null
+                            : () =>
+                                _checkUpdate(),
+                        icon: const Icon(
+                            Icons.refresh,
+                            size: 18),
+                        label: const Text(
+                            'Update စစ်မယ်'),
+                      ),
+                    ],
+                  ),
+                  if (_checkingUpdate)
+                    const LinearProgressIndicator(),
+                  if (_dlProgress >= 0) ...[
+                    const SizedBox(height: 8),
+                    LinearProgressIndicator(
+                        value: _dlProgress),
+                    Text(
+                        '${(_dlProgress * 100).toStringAsFixed(0)}% ဒေါင်းနေတယ်…'),
+                  ],
+                  if (_updateMsg != null)
+                    Padding(
+                      padding:
+                          const EdgeInsets.only(
+                              top: 4),
+                      child: Text(_updateMsg!,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey)),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           FilledButton.icon(
             onPressed: (_busy || _running) ? null : _pickVideo,
             icon: const Icon(Icons.video_library),
