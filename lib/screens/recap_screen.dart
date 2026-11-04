@@ -9,6 +9,8 @@ import 'dart:convert';
 import '../services/dub_renderer.dart';
 import '../services/edge_tts_service.dart';
 import '../services/ffmpeg_service.dart';
+import '../services/gemini_tts_service.dart';
+import '../services/google_tts_service.dart';
 import '../services/gemini_service.dart';
 import '../services/key_store.dart';
 import '../widgets/job_runner.dart';
@@ -40,6 +42,8 @@ class _RecapScreenState extends State<RecapScreen>
 
   // voice (Edge TTS)
   String _voiceId = EdgeTtsService.voices[0].id;
+  String _ttsEngine = 'auto'; // auto, edge, gemini, google
+  String _geminiVoice = GeminiTtsService.voices[0].id;
   double _rate = 0; // -50..+50 %
   double _pitch = 0; // -20..+20 Hz
   String? _ttsPath;
@@ -208,22 +212,61 @@ class _RecapScreenState extends State<RecapScreen>
     }
   }
 
-  // ---------- voice (Edge TTS) ----------
+  // ---------- voice (multi-engine TTS with fallback) ----------
+
+  /// Try TTS engines in order. Returns the audio file path.
+  /// Chain: Edge → Gemini (key) → Google (free). Throws on total failure.
+  Future<String> _synthesizeWithFallback(
+      String text, void Function(String) onStep) async {
+    final order = _ttsEngine == 'edge'
+        ? ['edge']
+        : _ttsEngine == 'gemini'
+            ? ['gemini']
+            : _ttsEngine == 'google'
+                ? ['google']
+                : ['edge', 'gemini', 'google']; // auto
+
+    String? lastErr;
+    for (final eng in order) {
+      try {
+        if (eng == 'edge') {
+          onStep('Edge TTS စမ်းနေတယ်…');
+          return await _edge.synthesize(
+            text: text,
+            voiceId: _voiceId,
+            rate: EdgeTtsService.formatRate(_rate),
+            pitch: EdgeTtsService.formatPitch(_pitch),
+          );
+        } else if (eng == 'gemini') {
+          onStep('Gemini TTS စမ်းနေတယ်… (key သုံး)');
+          return await GeminiTtsService(_keys).synthesize(
+            text: text,
+            voiceName: _geminiVoice,
+          );
+        } else {
+          onStep('Google TTS စမ်းနေတယ်…');
+          return await GoogleTtsService().synthesize(text);
+        }
+      } catch (e) {
+        lastErr = '$eng: $e';
+        onStep('⚠️ $eng မရပါ — နောက် engine စမ်းမယ်');
+      }
+    }
+    throw Exception('TTS အားလုံး မရပါ.\n$lastErr');
+  }
 
   Future<void> _makeTts({bool sample = false}) async {
-    final text = sample ? 'မင်္ဂလာပါ။ ဒါက အသံနမူနာပါ။' : _textCtrl.text.trim();
+    final text = sample
+        ? 'မင်္ဂလာပါ။ ဒါက အသံနမူနာပါ။'
+        : _textCtrl.text.trim();
     if (text.isEmpty) return;
     setState(() {
       _busy = true;
-      _status = 'Edge TTS အသံထွက်နေတယ်… (internet လို)';
+      _status = 'TTS အသံထွက်နေတယ်… (internet လို)';
     });
     try {
-      final path = await _edge.synthesize(
-        text: text,
-        voiceId: _voiceId,
-        rate: EdgeTtsService.formatRate(_rate),
-        pitch: EdgeTtsService.formatPitch(_pitch),
-      );
+      final path = await _synthesizeWithFallback(
+          text, (s) => setState(() => _status = s));
       final info = await FfmpegService.getMediaInfo(path);
       if (!mounted) return;
       setState(() {
@@ -238,9 +281,9 @@ class _RecapScreenState extends State<RecapScreen>
         }
       });
       if (sample) {
-        // play sample via video player hack: use a temp audio-only route
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('နမူနာ file ရပြီ — file manager မှာ ဖွင့်နားထောင်ပါ')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content:
+                Text('နမူနာ file ရပြီ — file manager မှာ ဖွင့်နားထောင်ပါ')));
       }
     } catch (e) {
       if (!mounted) return;
@@ -462,18 +505,67 @@ class _RecapScreenState extends State<RecapScreen>
           ]),
 
           // 3. Voice
-          _section('🔊 အသံ (Edge TTS · အခမဲ့)', [
-            DropdownButtonFormField<String>(
-              initialValue: _voiceId,
-              decoration: const InputDecoration(
-                  labelText: 'အသံ', border: OutlineInputBorder()),
-              items: EdgeTtsService.voices
-                  .map((v) => DropdownMenuItem(
-                      value: v.id, child: Text('${v.label} · Edge')))
-                  .toList(),
-              onChanged: (v) =>
-                  setState(() => _voiceId = v ?? _voiceId),
+          _section('🔊 အသံ', [
+            const Text('အသံ engine (Edge မရရင် auto-ကျော်)'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ChoiceChip(
+                    label:
+                        const Text('Auto (Edge → Gemini → Google)'),
+                    selected: _ttsEngine == 'auto',
+                    onSelected: (_) =>
+                        setState(() => _ttsEngine = 'auto')),
+                ChoiceChip(
+                    label: const Text('Edge TTS'),
+                    selected: _ttsEngine == 'edge',
+                    onSelected: (_) =>
+                        setState(() => _ttsEngine = 'edge')),
+                ChoiceChip(
+                    label: const Text('Gemini TTS (key)'),
+                    selected: _ttsEngine == 'gemini',
+                    onSelected: (_) =>
+                        setState(() => _ttsEngine = 'gemini')),
+                ChoiceChip(
+                    label: const Text('Google TTS'),
+                    selected: _ttsEngine == 'google',
+                    onSelected: (_) =>
+                        setState(() => _ttsEngine = 'google')),
+              ],
             ),
+            const SizedBox(height: 12),
+            if (_ttsEngine == 'edge' || _ttsEngine == 'auto')
+              DropdownButtonFormField<String>(
+                initialValue: _voiceId,
+                decoration: const InputDecoration(
+                    labelText: 'Edge အသံ',
+                    border: OutlineInputBorder()),
+                items: EdgeTtsService.voices
+                    .map((v) => DropdownMenuItem(
+                        value: v.id,
+                        child: Text('${v.label} · Edge')))
+                    .toList(),
+                onChanged: (v) =>
+                    setState(() => _voiceId = v ?? _voiceId),
+              ),
+            if (_ttsEngine == 'gemini' || _ttsEngine == 'auto') ...[
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                initialValue: _geminiVoice,
+                decoration: const InputDecoration(
+                    labelText: 'Gemini အသံ (fallback)',
+                    border: OutlineInputBorder()),
+                items: GeminiTtsService.voices
+                    .map((v) => DropdownMenuItem(
+                        value: v.id,
+                        child: Text('${v.label} · Gemini')))
+                    .toList(),
+                onChanged: (v) => setState(
+                    () => _geminiVoice = v ?? _geminiVoice),
+              ),
+            ],
             const SizedBox(height: 8),
             Text('Speed: ${_rate.round()}%'),
             Slider(
@@ -489,6 +581,9 @@ class _RecapScreenState extends State<RecapScreen>
                 divisions: 20,
                 value: _pitch,
                 onChanged: (v) => setState(() => _pitch = v)),
+            const Text('Speed/Pitch က Edge TTS အတွက်သာ အလုပ်လုပ်တယ်',
+                style: TextStyle(
+                    color: Colors.grey, fontSize: 11)),
             Row(
               children: [
                 Expanded(
