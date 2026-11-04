@@ -241,14 +241,39 @@ class DubRenderer {
         '-movflags +faststart ${FfmpegService.q(out)}';
 
     onLog('Render start…');
-    final rc = await FfmpegService.runJob(
+    var rc = await FfmpegService.runJob(
       command: cmd,
       totalDurationMs: totalMs,
       onProgress: onProgress,
       onLog: onLog,
     );
+    // Fallback: if the full filter chain crashes/fails (e.g. a device-
+    // specific native issue with blur/subtitles), retry with a minimal
+    // safe chain so the user still gets a dubbed video.
+    if (rc != 0) {
+      onLog('Full render failed (code $rc) — trying safe mode…');
+      final safeVf =
+          '[0:v]scale=w=\'if(gt(iw,ih),$longEdge,-2)\':h=\'if(gt(iw,ih),-2,$longEdge)\',format=yuv420p[v]';
+      final safeCmd = '-y -i ${FfmpegService.q(c.videoPath)} '
+          '-i ${FfmpegService.q(c.ttsPath)} '
+          '-filter_complex "$safeVf;$af" -map "[v]" -map "[aout]" '
+          '-c:v libx264 -crf 23 -preset veryfast -c:a aac -b:a 128k '
+          '-movflags +faststart ${FfmpegService.q(out)}';
+      rc = await FfmpegService.runJob(
+        command: safeCmd,
+        totalDurationMs: totalMs,
+        onProgress: onProgress,
+        onLog: onLog,
+      );
+    }
     if (rc != 0) throw Exception('Render failed (code $rc)');
     if (!await File(out).exists()) throw Exception('Output not created');
     return out;
   }
+
+  /// True if [srt] looks like real SRT (has timestamp lines).
+  /// Guards libass against garbage when Gemini returns prose.
+  static bool looksLikeSrt(String srt) =>
+      RegExp(r'\d{2}:\d{2}:\d{2}[,.]\d{3}\s*-->\s*\d{2}:\d{2}:\d{2}[,.]\d{3}')
+          .hasMatch(srt);
 }

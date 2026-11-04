@@ -351,10 +351,19 @@ class _RecapScreenState extends State<RecapScreen>
       builder: (_) => JobRunner(
         title: 'Dubbing…',
         run: (onProgress, onLog) async {
-          // Write SRT for translate mode.
+          // Write SRT for translate mode — but only if Gemini actually
+          // returned valid SRT; otherwise skip subtitles (garbage SRT
+          // can crash libass on some devices).
           if (cfg.autoSubtitle) {
-            cfg.srtPath =
-                await FfmpegService.writeSrt(_textCtrl.text.trim());
+            final txt = _textCtrl.text.trim();
+            if (DubRenderer.looksLikeSrt(txt)) {
+              cfg.srtPath =
+                  await FfmpegService.writeSrt(txt);
+            } else {
+              cfg.autoSubtitle = false;
+              onLog(
+                  'Script က SRT ပုံစံမဟုတ်လို့ subtitle ထည့်မပေးပါ');
+            }
           }
           final out = await DubRenderer.render(cfg,
               onProgress: onProgress, onLog: onLog);
