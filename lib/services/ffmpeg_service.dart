@@ -12,11 +12,13 @@ class MediaInfo {
   final double durationMs;
   final String resolution;
   final int sizeBytes;
+  final bool hasAudio;
 
   MediaInfo({
     required this.durationMs,
     required this.resolution,
     required this.sizeBytes,
+    this.hasAudio = false,
   });
 }
 
@@ -67,13 +69,14 @@ class FfmpegService {
           double.tryParse(props?['duration']?.toString() ?? '') ?? 0;
 
       String resolution = '';
+      bool hasAudio = false;
       final streams = info.getStreams();
       for (final s in streams) {
         final p = s.getAllProperties();
-        if (p?['codec_type'] == 'video') {
+        if (p?['codec_type'] == 'video' && resolution.isEmpty) {
           resolution = '${p?['width']}x${p?['height']}';
-          break;
         }
+        if (p?['codec_type'] == 'audio') hasAudio = true;
       }
 
       final size = await File(path).length();
@@ -81,6 +84,7 @@ class FfmpegService {
         durationMs: durationSec * 1000,
         resolution: resolution,
         sizeBytes: size,
+        hasAudio: hasAudio,
       );
     } catch (_) {
       return null;
@@ -156,7 +160,8 @@ class FfmpegService {
   static String esc(String s) => s
       .replaceAll('\\', '\\\\')
       .replaceAll(':', '\\:')
-      .replaceAll("'", "\\'");
+      .replaceAll("'", "\\'")
+      .replaceAll(',', '\\,');
 
   /// Cancels all running FFmpeg sessions.
   static Future<void> cancel() => FFmpegKit.cancel();

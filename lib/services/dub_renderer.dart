@@ -25,6 +25,8 @@ class DubConfig {
   String? srtPath;
   double videoSec;
   double ttsSec;
+  // Whether the source video has an audio track (for mixing).
+  bool hasAudio = true;
   // video fx
   bool mirror = false;
   String ratio = '9:16'; // 9:16, 16:9, 1:1, 4:3, original
@@ -60,8 +62,11 @@ class DubConfig {
 /// Builds and runs the full dubbing render in one FFmpeg pass.
 class DubRenderer {
   /// Escape for FFmpeg filter arguments.
-  static String esc(String s) =>
-      s.replaceAll('\\', '\\\\').replaceAll(':', '\\:').replaceAll("'", "\\'");
+  static String esc(String s) => s
+      .replaceAll('\\', '\\\\')
+      .replaceAll(':', '\\:')
+      .replaceAll("'", "\\'")
+      .replaceAll(',', '\\,');
 
   /// Flutter Color → ASS &HAABBGGRR (with opacity 0..1).
   static String ass(Color c, [double opacity = 1.0]) {
@@ -215,11 +220,12 @@ class DubRenderer {
     final vf = filters.join(';');
 
     // Audio: TTS (+ original mixed at volume, or replace).
+    // If the video has no audio track, or user chose replace, use TTS only.
     final String af;
     final String maps;
-    if (c.origVolume < 0) {
+    if (c.origVolume < 0 || !c.hasAudio) {
       af = '[1:a]aresample=44100,volume=1.0[aout]';
-      maps = '-map "[${label.isEmpty ? 'v' : label}]" -map "[aout]"';
+      maps = '-map "[$label]" -map "[aout]"';
     } else {
       af = '[0:a]volume=${c.origVolume.toStringAsFixed(2)},aresample=44100[a0];'
           '[1:a]aresample=44100,volume=1.0[a1];'

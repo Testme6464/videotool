@@ -71,18 +71,13 @@ class _SubtitleScreenState extends State<SubtitleScreen> {
           final font = await FfmpegService.fontPath();
           final ts = DateTime.now().millisecondsSinceEpoch;
           final out = '${outDir.path}/subtitled_$ts.mp4';
-          // Escape for subtitles filter: backslash-escape : ' ,
-          String esc(String s) => s
-              .replaceAll('\\', '\\\\')
-              .replaceAll(':', '\\:')
-              .replaceAll("'", "\\'");
           final style =
               "FontName=Noto Sans Myanmar,FontSize=${_fontSize.round()},"
               "PrimaryColour=&H00FFFFFF,OutlineColour=&H80000000,"
               "BorderStyle=1,Outline=1,Shadow=0,"
               "MarginV=28,Alignment=2";
           final vf =
-              "subtitles=${esc(srt)}:fontsdir=${esc(font.replaceAll(RegExp(r'/[^/]+$'), ''))}:force_style='$style'";
+              "subtitles=${FfmpegService.esc(srt)}:fontsdir=${FfmpegService.esc(font.replaceAll(RegExp(r'/[^/]+$'), ''))}:force_style='$style'";
           final cmd =
               '-y -i ${FfmpegService.q(inPath)} -vf "$vf" '
               '-c:v libx264 -crf 23 -preset veryfast -c:a copy '

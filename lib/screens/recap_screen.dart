@@ -329,7 +329,8 @@ class _RecapScreenState extends State<RecapScreen>
       ..subBg = _subBg
       ..subBgColor = _subBgColor
       ..subBgOpacity = _subBgOpacity
-      ..subFontSize = _subFontSize;
+      ..subFontSize = _subFontSize
+      ..hasAudio = info.hasAudio;
     cfg.masks[0]
       ..enabled = _masks[0].enabled
       ..x = _masks[0].x
