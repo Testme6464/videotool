@@ -66,8 +66,10 @@ class GeminiService {
   /// Returns null on success, or the detailed error message on failure.
   Future<String?> testKeyDetailed(String rawKey) async {
     try {
+      // NOTE: new models (3.5+) use chain-of-thought; maxOutputTokens must
+      // leave room for thinking tokens, else we get "Empty text".
       await _callOnce(rawKey, 'Reply with exactly: ok',
-          media: const [], temperature: 0, maxTokens: 8);
+          media: const [], temperature: 0, maxTokens: 256);
       return null;
     } on _LocationBlocked catch (e) {
       return e.message;
