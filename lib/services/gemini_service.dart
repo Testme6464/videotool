@@ -8,8 +8,9 @@ import 'key_store.dart';
 /// When a key hits its limit (429/403/quota), the next usable key is tried.
 class GeminiService {
   static const _base = 'https://generativelanguage.googleapis.com/v1beta';
-  // Free-tier friendly default model.
-  static const defaultModel = 'gemini-2.0-flash';
+  // Free-tier friendly default model (verified working 2026-11-04).
+  // NOTE: gemini-2.0-flash was retired by Google (404) — never use it.
+  static const defaultModel = 'gemini-3.5-flash';
 
   final KeyStore keys;
   String model;
@@ -43,6 +44,10 @@ class GeminiService {
       } on _LocationBlocked {
         // Geo-block affects every key — stop immediately, don't rotate.
         rethrow;
+      } on _ModelGone {
+        // Model retired/renamed — not the key's fault. Don't penalize keys,
+        // don't burn through rotation; surface it immediately.
+        rethrow;
       } on _BadKey catch (e) {
         await keys.reportFailure(k.id, e.message, isQuota: false);
         continue;
@@ -58,15 +63,24 @@ class GeminiService {
   }
 
   /// Quick key validity check — tiny prompt, no rotation.
-  Future<bool> testKey(String rawKey) async {
+  /// Returns null on success, or the detailed error message on failure.
+  Future<String?> testKeyDetailed(String rawKey) async {
     try {
       await _callOnce(rawKey, 'Reply with exactly: ok',
           media: const [], temperature: 0, maxTokens: 8);
-      return true;
-    } catch (_) {
-      return false;
+      return null;
+    } on _LocationBlocked catch (e) {
+      return e.message;
+    } on GeminiException catch (e) {
+      return e.message;
+    } catch (e) {
+      return 'Network error: $e';
     }
   }
+
+  /// Quick key validity check — tiny prompt, no rotation.
+  Future<bool> testKey(String rawKey) async =>
+      await testKeyDetailed(rawKey) == null;
 
   Future<String> _callOnce(
     String apiKey,
@@ -144,7 +158,16 @@ class GeminiService {
       }
       throw _BadKey('Key error (${res.statusCode}): $msg');
     }
-    if (res.statusCode == 404) throw _BadKey('Model not found: $model');
+    if (res.statusCode == 404) {
+      final lower = msg.toLowerCase();
+      if (lower.contains('model') &&
+          (lower.contains('not found') ||
+              lower.contains('no longer available'))) {
+        throw _ModelGone(
+            'AI model မရတော့ပါ ($model) — app update လိုပါတယ်။ Key က အကောင်းပါ။');
+      }
+      throw _BadKey('Not found: $msg');
+    }
     throw _QuotaHit('HTTP ${res.statusCode}: $msg');
   }
 
@@ -183,4 +206,10 @@ class _BadKey extends GeminiException {
 /// Geo-blocked region — VPN needed. Not a key problem, so no rotation.
 class _LocationBlocked extends GeminiException {
   _LocationBlocked(super.message);
+}
+
+/// Model retired/renamed by Google — app needs an update.
+/// Not a key problem: never penalize the key, never rotate.
+class _ModelGone extends GeminiException {
+  _ModelGone(super.message);
 }

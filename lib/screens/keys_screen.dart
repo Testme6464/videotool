@@ -23,6 +23,7 @@ class _KeysScreenState extends State<KeysScreen> {
   final _labelCtrl = TextEditingController();
   bool _testing = false;
   String? _testResult;
+  bool _testFailed = false;
   final _testingKeyId = <String>{};
   var _obscure = true;
 
@@ -52,27 +53,34 @@ class _KeysScreenState extends State<KeysScreen> {
     }
   }
 
-  Future<void> _add() async {
+  Future<void> _add({bool skipTest = false}) async {
     final raw = _keyCtrl.text.trim();
     if (raw.isEmpty) return;
     setState(() {
       _testing = true;
       _testResult = null;
+      _testFailed = false;
     });
-    final ok = await GeminiService(_store).testKey(raw);
+    String? err;
+    if (!skipTest) {
+      err = await GeminiService(_store).testKeyDetailed(raw);
+    }
     if (!mounted) return;
-    if (ok) {
+    if (err == null) {
       await _store.addKey(raw, label: _labelCtrl.text);
       _keyCtrl.clear();
       _labelCtrl.clear();
       setState(() {
         _testing = false;
-        _testResult = '✅ Key အလုပ်လုပ်တယ်, ထည့်ပြီးပြီ';
+        _testResult = skipTest
+            ? '✅ စစ်ဆေးမှုကျော်ပြီး ထည့်ပြီးပြီ'
+            : '✅ Key အလုပ်လုပ်တယ်, ထည့်ပြီးပြီ';
       });
     } else {
       setState(() {
         _testing = false;
-        _testResult = '❌ Key မမှန်ပါ / VPN လိုနိုင်တယ် / network ပြဿနာ';
+        _testFailed = true;
+        _testResult = '❌ $err';
       });
     }
   }
@@ -220,15 +228,21 @@ class _KeysScreenState extends State<KeysScreen> {
                                 setState(() {
                                   _testing = true;
                                   _testResult = null;
+                                  _testFailed = false;
                                 });
-                                final ok = await GeminiService(_store)
-                                    .testKey(raw);
+                                final err =
+                                    await GeminiService(_store)
+                                        .testKeyDetailed(raw);
                                 if (!mounted) return;
                                 setState(() {
                                   _testing = false;
-                                  _testResult = ok
-                                      ? '✅ Key အလုပ်လုပ်တယ်'
-                                      : '❌ မရပါ — key စစ် / VPN စမ်းပါ';
+                                  if (err == null) {
+                                    _testResult =
+                                        '✅ Key အလုပ်လုပ်တယ်';
+                                  } else {
+                                    _testFailed = true;
+                                    _testResult = '❌ $err';
+                                  }
                                 });
                               },
                         icon: const Icon(Icons.wifi_find),
@@ -252,6 +266,16 @@ class _KeysScreenState extends State<KeysScreen> {
                 if (_testResult != null) ...[
                   const SizedBox(height: 8),
                   Text(_testResult!),
+                  if (_testFailed) ...[
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed:
+                          _testing ? null : () => _add(skipTest: true),
+                      icon: const Icon(Icons.skip_next),
+                      label: const Text(
+                          'စစ်ဆေးမှုကျော်၍ ထည့်မယ် (key မှန်တာ သေချာရင်)'),
+                    ),
+                  ],
                 ],
                 const SizedBox(height: 20),
                 Text('ထည့်ထားတဲ့ keys (${_store.keys.length})',
