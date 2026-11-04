@@ -62,7 +62,7 @@ jobs:
             { echo '## flutter analyze failed'; echo '```'; tail -c 15000 analyze.log; echo '```'; } > analyze-tail.md
             gh issue create --title "Analyze failed (run $GITHUB_RUN_NUMBER)" --body-file analyze-tail.md || true
             exit 1
-          f 
+          fi
 
       - name: Build debug APK
         env:
@@ -89,7 +89,7 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.4.0
-          name: VideoTool v0.4.0 (debug)
+          tag_name: v0.4.1
+          name: VideoTool v0.4.1 (debug)
           body: "Debug APK built automatically from the main branch."
           files: build/app/outputs/flutter-apk/app-debug.apk
