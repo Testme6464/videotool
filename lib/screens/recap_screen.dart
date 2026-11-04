@@ -859,22 +859,41 @@ class _RecapScreenState extends State<RecapScreen>
                         TextStyle(color: Colors.grey, fontSize: 12),
                   ),
                   const SizedBox(height: 12),
+                  // NOTE: button stays enabled so tapping it explains
+                  // which step is missing (disabled buttons give no hint).
                   ElevatedButton(
-                    onPressed: (_busy ||
-                            _videoPath == null ||
-                            _ttsPath == null)
-                        ? null
-                        : _startDubbing,
+                    onPressed:
+                        _busy ? null : _startDubbing,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.pinkAccent,
+                      disabledBackgroundColor:
+                          Colors.pinkAccent,
                       padding:
                           const EdgeInsets.symmetric(vertical: 16),
                     ),
                     child: const Text('START DUBBING',
                         style: TextStyle(
                             fontSize: 18,
-                            fontWeight: FontWeight.bold)),
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white)),
                   ),
+                  if (_videoPath == null ||
+                      _ttsPath == null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        [
+                          if (_videoPath == null)
+                            '① Video ရွေးပါ',
+                          if (_ttsPath == null)
+                            '② "TTS Audio ထုတ်မယ်" နှိပ်ပါ',
+                        ].join(' → '),
+                        style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.purple),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
                 ],
               ),
             ),
